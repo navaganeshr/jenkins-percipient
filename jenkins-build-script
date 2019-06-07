@@ -1,0 +1,426 @@
+#!/bin/bash
+   if [ -z $Commit ] ; then
+      Commit=`git log $branch -1 --pretty=format:"%H"`
+   else 
+      git checkout $Commit
+     
+     if [ `echo $?` -ne 0 ] ; then 
+     
+           exit 1;
+       fi   
+       
+     fi 
+
+   if [ -z $TAG ] ; then
+      TAG=`git describe --tags --abbrev=0 "$Commit" | tail -n1`
+   elif [ -z $TAG ] ; then
+      exit 1;
+      
+    fi
+       
+
+         echo ''
+         echo ''
+         echo "################### BUIILDING FROM THE COMMIT-ID $Commit AND $TAG############"
+         echo ''
+         echo ''
+         echo ''
+         echo '################### BUIILDING THE SERVICES ####################################'
+ $(aws ecr get-login --no-include-email --region us-east-2 --profile depscript-dev)
+ 
+all_services=$(cat /tmp/dev-build-services)
+
+#echo -e "hi $User \n     The job is runnig. Be awaiting, the log will be mailed to you  " | mail -s "Build Result" pranaykrishnar@maveric-systems.com
+
+for i in $all_services 
+
+do 
+ 
+ if [ $i == "Finacle-fixml-connector" ] ; then 
+     cd /var/lib/jenkins/workspace/UCT-dev-build-job/connectors/finacle-fixml-connector
+    echo "Building the finacle-fixml-connector service"
+    mvn clean
+    mvn package
+    snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+    snyk monitor
+    cp Dockerfile target
+	cd target
+   #sonar-scanner -Dsonar.host.url=http://18.191.176.41:9000
+    $(aws ecr get-login --no-include-email --region us-east-2 --profile depscript-dev)
+	docker build -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/connectors/finacle-$Env:latest --pull=true .
+	docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/connectors/finacle-$Env 261887539407.dkr.ecr.us-east-2.amazonaws.com/connectors/finacle-$Env:latest
+    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/connectors/finacle-$Env:latest
+    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/connectors/finacle-$Env:$TAG
+ 
+ elif [ $i == "T24-ofsml-connector" ] ; then 
+    echo "Building the t24-ofsml-connector-service service"
+    cd /var/lib/jenkins/workspace/UCT-ConnectorsService-Build/connectors/t24-ofsml-connector-service
+    mvn clean
+    mvn package
+    snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+    snyk monitor
+    cp Dockerfile target
+	cd target 
+   #sonar-scanner -Dsonar.host.url=http://18.191.176.41:9000
+	docker build -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/t24-ofsml-connector-service-$Env:latest --pull=true .
+	docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/t24-ofsml-connector-service-$Env 261887539407.dkr.ecr.us-east-2.amazonaws.com/t24-ofsml-connector-service-$Env:latest
+    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/t24-ofsml-connector-service-$Env:latest
+    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/t24-ofsml-connector-service-$Env:$TAG
+
+ 
+ elif [ $i == "Processor-authentication-service" ] ; then
+ 
+	   #processor layer
+		echo "#################Build the authentication service############################"
+		cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/processors/authentication
+		rm -rf node_modules package-lock.json dist
+		npm install
+		snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		snyk monitor
+	   #npm run start
+		docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/security/authentication-$Env:latest --pull=true .
+		docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/security/authentication-$Env 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/security/authentication-$Env:$TAG
+	    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/security/authentication-$Env:latest
+	    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/security/authentication-$Env:$TAG
+	   #if [ "$Env" == dev ]
+		# then
+		#sonar-scanner -Dsonar.host.url=http://localhost:9000
+	   #elif [ "$Env" == prod ]
+		# then
+		#sonar-scanner -Dsonar.host.url=http://localhost:9001
+	   #fi
+	   $(aws ecr get-login --no-include-email --region us-east-2 --profile depscript-dev)
+ 
+ elif [ $i == "Processor-retail-Service" ] ; then
+ 
+		echo "Building the retail Service"
+		cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/processors/retail
+		rm -rf node_modules package-lock.json dist
+		npm install
+		snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		snyk monitor
+		npm run build
+		cd dist
+		docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/accountmgmt/retail-$Env:latest --pull=true .
+		docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/accountmgmt/retail-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/accountmgmt/retail-$Env:$TAG
+	    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/accountmgmt/retail-$Env:latest
+	    docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/accountmgmt/retail-$Env:$TAG
+	   #if [ "$Env" == dev ]
+		 # then
+		 #sonar-scanner -Dsonar.host.url=http://localhost:9000
+	   #elif [ "$Env" == prod ]
+		 # then
+		 #sonar-scanner -Dsonar.host.url=http://localhost:9001
+	   #fi
+ 
+ elif [ $i == "Processor-welcome-Service" ] ; then
+ 
+	   echo "Building the welcome Service"
+	   cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/processors/welcome
+	   rm -rf node_modules package-lock.json dist
+	   npm install
+	   snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+	   snyk monitor
+	   npm run build
+	   cd dist
+	   docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/customermgmt/welcome-$Env:latest --pull=true .
+	   docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/customermgmt/welcome-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/customermgmt/welcome-$Env:$TAG
+	   docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/customermgmt/welcome-$Env:latest
+	   docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/customermgmt/welcome-$Env:$TAG
+      #if [ "$Env" == dev ]
+        # then
+        #sonar-scanner -Dsonar.host.url=http://localhost:9000
+      #elif [ "$Env" == prod ]
+        # then
+        #sonar-scanner -Dsonar.host.url=http://localhost:9001
+      #fi
+      
+      
+ elif [ $i == "Processor-Products" ] ; then
+ 
+ 		echo "Building the Processor-Products Service"
+		  cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/processors/products
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/products-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/products-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/products-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/products-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/products-$Env:$TAG
+		 #if [ "$Env" == dev ]
+		 # then
+		   #sonar-scanner -Dsonar.host.url=http://localhost:9000
+		 #elif [ "$Env" == prod ]
+		 # then
+		    #sonar-scanner -Dsonar.host.url=http://localhost:9001
+		 #fi
+  
+      
+ 
+ elif [ $i == "Processor-fund-transfer-Service" ] ; then
+		
+
+		echo "Building the fund transfer Service"
+		  cd /var/lib/jenkins/workspace/UCT-ProcessorServices-Build/processors/fund-transfer
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+          npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/fund-transfer-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/fund-transfer-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/fund-transfer-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/fund-transfer-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/fund-transfer-$Env:$TAG
+		 #if [ "$Env" == dev ]
+		 # then
+		   #sonar-scanner -Dsonar.host.url=http://localhost:9000
+		 #elif [ "$Env" == prod ]
+		 # then
+		    #sonar-scanner -Dsonar.host.url=http://localhost:9001
+		 #fi
+		 
+		 
+ elif [ $i == "ProcessorServices-mfino-Service" ] ; then
+  
+		
+		echo "Building the mfino Service"
+		mfinobranch=`git branch  -r --contains $Commit | grep -i mfino`
+
+		if [ $mfinobranch == origin/feature/mfino-api-integration ]
+		then
+		  cd /var/lib/jenkins/workspace/UCT-ProcessorServices-Build/processors/mfino
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cp -r ../common_modules dist/common_modules
+		  sed -i 's/\.\.\/\.//g' dist/package.json
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/mfino-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/mfino-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/mfino-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/mfino-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/processors/mfino-$Env:$TAG
+		else
+		 echo "Skipping the mfino build"
+		fi
+  
+ elif [ $i == "Transformers-finacle-account-summary" ] ; then
+		  
+		  
+		  echo "Building the finacle-account-summary Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/account-summary/finacle-account-summary
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-summary-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-summary-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-summary-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-summary-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-summary-$Env:$TAG
+ 
+ 
+ elif [ $i == "Transformers-finacle-account-list" ] ; then
+		  
+		  
+		  echo "Building the finacle-account-list Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/account-list/finacle-account-list/
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  #snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  #snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-list-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-list-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-list-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-list-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/account-list-$Env:$TAG
+ 
+ elif [ $i == "TransformersService-t24-ofsml-account-summary-Service" ] ; then
+		  echo "Building the t24-ofsml-account-summary Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/account-summary/t24-ofsml-account-summary
+		  rm -rf package-lock.json node_modules dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/account-summary-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/account-summary-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/account-summary-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/account-summary-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/account-summary-$Env:$TAG
+		 
+ 
+ elif [ $i == "TransformersService-finacle-fund-transfer-Service" ] ; then
+ 
+		  echo "Building the finacle-fund-transfer Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/fund-transfers/finacle-fund-transfer
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/finacle/fund-transfer-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/finacle/fund-transfer-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/finacle/fund-transfer-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/finacle/fund-transfer-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/finacle/fund-transfer-$Env:$TAG
+	
+ 
+ elif [ $i == "TransformersService-t24-welcome-profile" ] ; then
+	      echo "Building the t24-ofsml-fund-transfer Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/profile/t24-profile/
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/welcome-profile-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/welcome-profile-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/welcome-profile-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/welcome-profile-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/welcome-profile-$Env:$TAG
+
+ elif [ $i == "TransformersService-finacle-transaction-list-Service" ] ; then
+ 
+		  echo "Building the finacle-transaction-list Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/transactions/finacle-transaction-list
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/transaction-list-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/transaction-list-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/transaction-list-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/transaction-list-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/transaction-list-$Env:$TAG
+		  
+		  
+ elif [ $i == "TransformersService-t24-ofsml-transaction-list-Service" ] ; then
+ 
+		  echo "Building the t24-ofsml-transaction-list Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/transactions/t24-ofsml-transaction-list
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/transaction-list-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/transaction-list-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/transaction-list-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/transaction-list-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/t24/transaction-list-$Env:$TAG
+     
+ elif [ $i == "TransformersService-finacle-profile-Service" ] ; then
+ 
+		 echo "Building the finacle-profile  Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/profile/finacle-profile
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:$TAG
+         
+ elif [ $i == "TransformersService-finacle-profile-Service" ] ; then
+ 
+		 echo "Building the finacle-profile  Service"
+		  cd /var/lib/jenkins/workspace/UCT-TransformersService-Build/transformers/profile/finacle-profile
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:$TAG
+		 #docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:latest
+		 #docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/finacle/welcome-profile-$Env:$TAG
+
+ elif [ $i == "TransformersService-product-mgmt" ] ; then
+ 
+		  echo "Building the TransformersService-Product-mgmt  Service"
+		  cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/transformers/product-mgmt
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/product-mgmt-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/product-mgmt-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/product-mgmt-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/product-mgmt-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/product-mgmt-$Env:$TAG
+ 
+ elif [ $i == "TransformersService-Account-mgmt" ] ; then
+ 
+		  echo "Building the TransformersService-Account-mgmt  Service"
+		  cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/transformers/account-mgmt
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/account-mgmt-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/account-mgmt-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/account-mgmt-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/account-mgmt-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/account-mgmt-$Env:$TAG
+ 
+ elif [ $i == "TransformersService-Customer-mgmt" ] ; then
+ 
+		  echo "Building the TransformersService-Customer-mgmt Service"
+		  cd /var/lib/jenkins/workspace/UCT-DEV-BUILD-ALL-LAYERS/transformers/customer-mgmt
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  snyk monitor
+		  npm run build
+		  cd dist
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/customer-mgmt-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/customer-mgmt-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/customer-mgmt-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/customer-mgmt-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/transformers/customer-mgmt-$Env:$TAG
+ 
+ elif [ $i == "Transactions-tx-wf-multi-address-update-Service" ] ; then
+		  echo "Building tx-wf-multi-address-update Service"
+		  cd transactions/tx-wf-multi-address-update
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  #snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  #snyk monitor
+		  $(aws ecr get-login --no-include-email --region us-east-2 --profile depscript-dev)
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:$TAG
+		   
+ fi
+ 
+  elif [ $i == "Transactions-tx-finnacle-fund-transfer" ] ; then
+		  echo "Building tx-wf-multi-address-update Service"
+		  cd transactions/tx-wf-multi-address-update
+		  rm -rf node_modules package-lock.json dist
+		  npm install
+		  #snyk auth 5242af1e-f6c4-4167-92aa-2329e0344c50
+		  #snyk monitor
+		  $(aws ecr get-login --no-include-email --region us-east-2 --profile depscript-dev)
+		  docker build --label ""vcs-ref="0.10.${BUILD_TIMESTAMP}-$Commit""" --build-arg ID_RSA="$(cat ~/.ssh/id_rsa)" --build-arg ID_RSA_PUB="$(cat ~/.ssh/id_rsa.pub)" -t 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest --pull=true .
+		  docker tag 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:$TAG
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:latest
+		  docker push 261887539407.dkr.ecr.us-east-2.amazonaws.com/uct/transactions/address-update-$Env:$TAG
+		   
+ fi
+ 
+done
